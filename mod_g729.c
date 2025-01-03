@@ -1,4 +1,4 @@
-/* 
+/*
  * FreeSWITCH Modular Media Switching Software Library / Soft-Switch Application
  * Copyright (C) 2005/2006, Anthony Minessale II <anthmct@yahoo.com>
  *
@@ -22,7 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- * 
+ *
  * Anthony Minessale II <anthmct@yahoo.com>
  * Michael Jerris <mike@jerris.com>
  *
@@ -165,7 +165,8 @@ static switch_status_t switch_g729_decode(switch_codec_t *codec,
 
     if (encoded_data_len == 0) {  /* Native PLC interpolation */
 	g729_decoder(&context->decoder_object, ddp,(unsigned char *)lost_frame, 0);
-	ddp+=80; decoded_data_len=160;
+	ddp+=80;
+    *decoded_data_len=160;
 	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "g729 zero length frame\n");
         return SWITCH_STATUS_SUCCESS;
     }
@@ -195,7 +196,7 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_g729_load)
 {
 	switch_codec_interface_t *codec_interface;
 	int mpf = 10000, spf = 80, bpf = 160, ebpf = 10, count;
-
+    //switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "Load IPP G729 module.\n");
 	// Init IPP library
 	g729_init_lib();
 

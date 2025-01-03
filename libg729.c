@@ -43,7 +43,7 @@ void g729_init_coder(PVT *hEncoder, int dummy){
     apiG729Encoder_InitBuff(state->coder, state->scratch_mem);
     apiG729Encoder_Init(state->coder, G729A_CODEC, G729Encode_VAD_Disabled);
 
-    return 0;
+    //return 0;
 }
 
 void g729_release_coder(PVT *hEncoder){
@@ -65,7 +65,7 @@ void g729_init_decoder(PVT *hDecoder){
     apiG729Decoder_InitBuff(state->coder, state->scratch_mem);
     apiG729Decoder_Init(state->coder, G729A_CODEC);
 
-    return 0;
+    //return 0;
 }
 
 void g729_release_decoder(PVT *hDecoder){
@@ -108,6 +108,6 @@ static int g729_frame_type(int datalen)
     return 0;
 }
 void g729_decoder(PVT *hDecoder, short *ddp, char *edp, int plen){
-	// EasyG729A_decoder(*hDecoder, (unsigned char *)edp, (short *)ddp);	
+	// EasyG729A_decoder(*hDecoder, (unsigned char *)edp, (short *)ddp);
         apiG729Decode(hDecoder->coder, edp, g729_frame_type(plen), ddp);
 }

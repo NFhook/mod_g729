@@ -1,8 +1,8 @@
 IPPARCH=em64t
 LARCH=$(IPPARCH)
-CC=cc 
-FSBASE=/home/krivushinme/soft/freeswitch/fssvn
-IPPBASE=/opt/intel/ipp/6.0.1.071/$(IPPARCH)
+CC=cc
+FSBASE=/usr/local/src/freeswitch
+IPPBASE=/opt/intel/ipp/6.0.2.076/$(IPPARCH)
 IPPCORE=m7
 
 CC_OPT=-fPIC -O3 -DIPPCORE_STATIC_INIT -fomit-frame-pointer -march=nocona -fno-exceptions
@@ -11,7 +11,8 @@ INCLUDE=-I$(IPPBASE)/include -include "$(IPPBASE)/tools/staticlib/ipp_$(IPPCORE)
 
 #INCLUDE=-I/opt/intel/ipp/6.0.1.071/ia32/include -include "/opt/intel/ipp/6.0.1.071/ia32/tools/staticlib/ipp_px.h" -I../../../include -I../../../../libs/libteletone/src
 
-LDFLAGS =-Wl,-static -L"$(IPPBASE)/lib" -avoid-version -module -lippscmerged$(LARCH) -lippsrmerged$(LARCH) -lippsmerged$(LARCH) -lippcore$(LARCH) -liomp5
+#LDFLAGS =-Wl,-static -L"$(IPPBASE)/lib" -avoid-version -module -lippscmerged$(LARCH) -lippsrmerged$(LARCH) -lippsmerged$(LARCH) -lippcore$(LARCH) -liomp5
+LDFLAGS =-Wl,-static -L"$(IPPBASE)/lib" -lippscmerged$(LARCH) -lippsrmerged$(LARCH) -lippsmerged$(LARCH) -lippcore$(LARCH) -liomp5
 
 
 all : decg729.o encg729.o owng729.o vadg729.o aux_tbls.o libg729.o mod_g729.o
@@ -38,4 +39,4 @@ mod_g729.o: mod_g729.c
 	$(CC) $(CC_OPT) -c mod_g729.c $(INCLUDE)
 
 clean:
-	rm *.o
+	rm *.o mod_g729.so
