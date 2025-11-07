@@ -37,6 +37,9 @@
 SWITCH_MODULE_LOAD_FUNCTION(mod_g729_load);
 SWITCH_MODULE_DEFINITION(mod_g729, mod_g729_load, NULL, NULL);
 
+//add a g729_debug switch.
+static volatile int g729_debug = 0;
+
 #ifndef G729_PASSTHROUGH
 #include "g729.h"
 
@@ -45,6 +48,25 @@ struct g729_context {
 	struct cod_state encoder_object;
 };
 #endif
+
+SWITCH_STANDARD_API(g729_debug_function)
+{
+    if (!zstr(cmd)) {
+        if (!strcasecmp(cmd, "on")) {
+            g729_debug = 1;
+            stream->write_function(stream, "+OK G.729 debug enabled\n");
+        } else if (!strcasecmp(cmd, "off")) {
+            g729_debug = 0;
+            stream->write_function(stream, "+OK G.729 debug disabled\n");
+        } else {
+            stream->write_function(stream, "-ERR usage: g729_debug [on|off]\n");
+        }
+    } else {
+        stream->write_function(stream, "G.729 debug is %s\n", g729_debug ? "on" : "off");
+    }
+    return SWITCH_STATUS_SUCCESS;
+}
+
 
 static switch_status_t switch_g729_init(switch_codec_t *codec, switch_codec_flag_t flags, const switch_codec_settings_t *codec_settings)
 {
@@ -109,7 +131,7 @@ static switch_status_t switch_g729_encode(switch_codec_t *codec,
 	struct g729_context *context = codec->private_info;
 	int cbret = 0;
 
-//	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "g729 encode!!!\n");
+	//switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "g729 encode!!!\n");
 	if (!context) {
 		return SWITCH_STATUS_FALSE;
 	}
@@ -130,12 +152,29 @@ static switch_status_t switch_g729_encode(switch_codec_t *codec,
 
 		if (new_len <= *encoded_data_len) {
 			*encoded_data_len = new_len;
+
+            if (g729_debug) {
+                int frames = loops;
+                int samples = frames * 80;
+                uint32_t enc_bytes = new_len;
+                if (codec && codec->session) {
+                    switch_core_session_t *session = codec->session;
+                    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG,
+                            "mod_g729: encode: frames [%d] samples [%d] encoded_bytes [%u]\n",
+                            frames, samples, enc_bytes);
+                } else {
+                    switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG,
+                            "mod_g729: encode: frames [%d] samples [%d] encoded_bytes [%u]\n",
+                            frames, samples, enc_bytes);
+                }
+            }
+
 		} else {
 			switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "buffer overflow!!! %u >= %u\n", new_len, *encoded_data_len);
 			return SWITCH_STATUS_FALSE;
 		}
 	}
-	return SWITCH_STATUS_SUCCESS;
+    return SWITCH_STATUS_SUCCESS;
 #endif
 }
 // For zero data
@@ -162,27 +201,60 @@ static switch_status_t switch_g729_decode(switch_codec_t *codec,
     uint32_t new_len = 0;
     char *edp = encoded_data;
     short *ddp = decoded_data;
+    int frames = 0;
 
     if (encoded_data_len == 0) {  /* Native PLC interpolation */
-	g729_decoder(&context->decoder_object, ddp,(unsigned char *)lost_frame, 0);
-	ddp+=80;
-    *decoded_data_len=160;
-	switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "g729 zero length frame\n");
+	    g729_decoder(&context->decoder_object, ddp,(unsigned char *)lost_frame, 0);
+	    ddp+=80;
+        *decoded_data_len=160;
+	    switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "g729 zero length frame\n");
+
+        if (g729_debug) {
+            if (codec && codec->session) {
+                switch_core_session_t *session = codec->session;
+                switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG,
+                        "mod_g729: decode PLC: frames [1] samples [80] decoded_bytes [%u]\n",
+                        (unsigned int)*decoded_data_len);
+            } else {
+                switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG,
+                        "mod_g729: decode PLC: frames [1] samples [80] decoded_bytes [%u]\n",
+                        (unsigned int)*decoded_data_len);
+            }
+        }
+
         return SWITCH_STATUS_SUCCESS;
     }
 
     for(x = 0; x < encoded_data_len && new_len < *decoded_data_len; x += framesize) {
-        if(encoded_data_len - x < 8)
+        if(encoded_data_len - x < 8) {
             framesize = 2;  /* SID */
-        else
+        } else {
             framesize = 10; /* regular 729a frame */
-	g729_decoder(&context->decoder_object, ddp, edp, framesize);
-	ddp += 80;
-	edp += framesize;
-	new_len += 160;
+        }
+	    g729_decoder(&context->decoder_object, ddp, edp, framesize);
+	    ddp += 80;
+	    edp += framesize;
+	    new_len += 160;
+         frames++;
     }
+
     if (new_len <= *decoded_data_len) {
         *decoded_data_len = new_len;
+        if (g729_debug) {
+            int decoded_samples = (int)(new_len / 2); /* 2 bytes per sample */
+            uint32_t in_encoded_bytes = encoded_data_len; /* 输入的 encoded 大小 */
+
+            if (codec && codec->session) {
+                switch_core_session_t *session = codec->session;
+                switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG,
+                    "mod_g729: decode: frames [%d] samples [%d] encoded_bytes_in [%u] decoded_bytes_out [%u]\n",
+                    frames, decoded_samples, (unsigned int)in_encoded_bytes, (unsigned int)new_len);
+            } else {
+                switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG,
+                    "mod_g729: decode: frames [%d] samples [%d] encoded_bytes_in [%u] decoded_bytes_out [%u]\n",
+                    frames, decoded_samples, (unsigned int)in_encoded_bytes, (unsigned int)new_len);
+            }
+        }
     } else {
         switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "buffer overflow!!!\n");
         return SWITCH_STATUS_FALSE;
@@ -194,15 +266,18 @@ static switch_status_t switch_g729_decode(switch_codec_t *codec,
 
 SWITCH_MODULE_LOAD_FUNCTION(mod_g729_load)
 {
+    switch_api_interface_t *api_interface;
 	switch_codec_interface_t *codec_interface;
 	int mpf = 10000, spf = 80, bpf = 160, ebpf = 10, count;
-    //switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "Load IPP G729 module.\n");
+    switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "Load IPP G729 module.\n");
+
 	// Init IPP library
 	g729_init_lib();
 
 	/* connect my internal structure to the blank pointer passed to me */
 	*module_interface = switch_loadable_module_create_module_interface(pool, modname);
 
+    SWITCH_ADD_API(api_interface, "g729_debug", "Toggle G.729 debug", g729_debug_function, "g729_debug [on|off]");
 	SWITCH_ADD_CODEC(codec_interface, "G.729");
 	for (count = 12; count > 0; count--) {
 		switch_core_codec_add_implementation(pool, codec_interface,
